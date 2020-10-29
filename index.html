@@ -1,0 +1,65 @@
+<html>
+  <title>WASM C++ Web Worker Demo</title>
+  <body>
+
+    <!-- User input form -->
+    <form id="fib">
+      <label for="input" />
+      <input id="input" name="input" type="number" placeholder="fib input" />
+      <button type="submit">Calculate</button>
+    </form>
+    <!-- The result list -->
+    <ul></ul>
+
+    <script>
+
+      class FibWorker {
+        _worker;
+        _waiting = new Map();
+        constructor() {
+          if (typeof(Worker) === "undefined") {
+            throw new Error('Cannot load web worker...');
+          }
+          this._worker = new Worker('./fib_worker.js');
+          this._worker.onmessage = event => {
+            const {id, result} = event.data;
+            if (!this._waiting.has(id)) {
+              return;
+            }
+            const resolve = this._waiting.get(id);
+            resolve(result);
+            this._waiting.delete(id);
+          };
+        }
+        _response(id) {
+          return new Promise(
+            resolve => this._waiting.set(id, resolve),
+          );
+        }
+        async calc({id, input}) {
+          this._worker.postMessage({id, input});
+          return await this._response(id);
+        }
+      }
+
+      const fib = new FibWorker();
+
+      document.querySelector("#fib").addEventListener("submit", ($event) => {
+        $event.preventDefault();
+        (async () => {
+          const input = document.querySelector("#input").value;
+          const id = `0x${`${Number(Math.floor(Math.random() * 1000000)).toString(16)}`.padStart(6, '0')}`;
+          const li = document.createElement('li');
+          li.setAttribute("id", id);
+          const txt_1 = document.createTextNode(`fib(${input}) => ...`);
+          li.appendChild(txt_1);
+          document.querySelector("ul").appendChild(li)
+          const result = await fib.calc({id, input});
+          const txt_2 = document.createTextNode(`fib(${input}) => ${result}`);
+          document.getElementById(id).replaceChild(txt_2, txt_1);
+        })();
+        return false;
+      });
+    </script>
+  </body>
+</html>
